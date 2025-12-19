@@ -1,23 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import ReactDOM from 'react-dom'; // Cambiado de 'react-dom/client' a 'react-dom' para compatibilidad
 import { 
   Thermometer, 
   Droplets, 
   Save, 
   History, 
+  Activity, 
   AlertTriangle, 
   CheckCircle, 
   Download, 
+  Trash2,
   Building2,
   User,
   Calendar,
   Clock,
   FileText,
+  BarChart2,
   Cloud,
+  Wifi,
+  Sheet, 
   Printer,
   RefreshCw,
   ArrowDown,
   ArrowUp,
-  Activity,
   Microscope,
   MapPin
 } from 'lucide-react';
@@ -39,12 +44,10 @@ const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwfBN
 const COMPANY_NAME = "UNIÓN MEDICA DEL NORTE";
 const COMPANY_SLOGAN = "Salud al Alcance de Todos";
 const APP_TITLE = "Control de Temperatura y Humedad";
-const PRIMARY_COLOR = "#158F97"; 
 const COMPANY_LOGO_URL = "https://i.postimg.cc/L8QN7rqJ/LOGO-CJ-removebg-preview.png";
 
 const AREAS = ["OPTICA", "FARMACIA", "PROCEDIMIENTOS", "ODONTOLOGIA", "LABORATORIO"];
 
-// ✅ ACTUALIZADO: Lista de sub-zonas corregida
 const LAB_ZONES = [
   "LABORATORIO", 
   "BAÑO SEROLOGICO",
@@ -52,9 +55,9 @@ const LAB_ZONES = [
   "NEVERA TRANSPORTE",
   "NEVERA ULTRALAB",
   "NEVERA WHIRPOOL",
-  "NEVERA CLAN",      // Nuevo
+  "NEVERA CLAN",
   "CONGELADOR",
-  "CONGELADOR CLAN",  // Nuevo
+  "CONGELADOR CLAN",
   "TOMA DE MUESTRA",
   "TOMA DE MUESTRA CLAN"
 ];
@@ -62,35 +65,35 @@ const LAB_ZONES = [
 // --- RANGOS ---
 const ZONE_LIMITS = {
   "DEFAULT": { temp: [15, 30], hum: [35, 70] }, 
-  "BAÑO SEROLOGICO":    { temp: [10, 50], hum: [0, 100] },
+  "BAÑO SEROLOGICO":    { temp: [35, 39], hum: [0, 100] }, 
   "NEVERA TRANSPORTE":  { temp: [2, 8],   hum: [0, 100] },
   "NEVERA ULTRALAB":    { temp: [2, 8],   hum: [0, 100] },
   "NEVERA WHIRPOOL":    { temp: [2, 8],   hum: [0, 100] },
-  "NEVERA CLAN":        { temp: [2, 8],   hum: [0, 100] }, // Nuevo
-  "CONGELADOR":         { temp: [-5, 0],  hum: [0, 100] }, 
-  "CONGELADOR CLAN":    { temp: [-5, 0],  hum: [0, 100] }, // Nuevo
+  "NEVERA CLAN":        { temp: [2, 8],   hum: [0, 100] },
+  "CONGELADOR":         { temp: [-25, -15],  hum: [0, 100] }, 
+  "CONGELADOR CLAN":    { temp: [-25, -15],  hum: [0, 100] },
 };
 
 const JORNADAS = ["Mañana", "Tarde"];
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('registro'); 
-  const [formType, setFormType] = useState('temperatura'); 
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); 
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+function App() {
+  const [activeTab, setActiveTab] = React.useState('registro'); 
+  const [formType, setFormType] = React.useState('temperatura'); 
+  const [records, setRecords] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false); 
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
   
   // Filtros
-  const [selectedAreaStats, setSelectedAreaStats] = useState(AREAS[0]);
-  const [selectedSubAreaStats, setSelectedSubAreaStats] = useState(LAB_ZONES[0]); // ✅ Estado para sub-filtro en historial
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedJornadaStats, setSelectedJornadaStats] = useState('Todas');
-  const [selectedTypeStats, setSelectedTypeStats] = useState('Temperatura'); 
+  const [selectedAreaStats, setSelectedAreaStats] = React.useState(AREAS[0]);
+  const [selectedSubAreaStats, setSelectedSubAreaStats] = React.useState(LAB_ZONES[0]); 
+  const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth());
+  const [selectedJornadaStats, setSelectedJornadaStats] = React.useState('Todas');
+  const [selectedTypeStats, setSelectedTypeStats] = React.useState('Temperatura'); 
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = React.useState({
     fecha: new Date().toISOString().split('T')[0],
     jornada: 'Mañana',
     area: AREAS[0],
@@ -99,6 +102,16 @@ export default function App() {
     humMin: '', humActual: '', humMax: '',
     registradoPor: '', observaciones: ''
   });
+
+  // --- AUTO-CORRECCIÓN DE ESTILOS (Tailwind CSS) ---
+  React.useEffect(() => {
+    if (!document.getElementById('tailwind-script')) {
+      const script = document.createElement('script');
+      script.id = 'tailwind-script';
+      script.src = "https://cdn.tailwindcss.com";
+      document.head.appendChild(script);
+    }
+  }, []);
 
   const parseNum = (val) => {
     if (val === null || val === undefined || val === '') return null;
@@ -109,8 +122,9 @@ export default function App() {
   };
 
   const getCurrentLimits = (areaName) => {
+    // Buscar coincidencia parcial o exacta en las claves de límites
     const specificKey = Object.keys(ZONE_LIMITS).find(key => 
-      areaName.includes(key) && key !== "DEFAULT"
+      areaName.toUpperCase().includes(key) && key !== "DEFAULT"
     );
     return specificKey ? ZONE_LIMITS[specificKey] : ZONE_LIMITS["DEFAULT"];
   };
@@ -124,6 +138,7 @@ export default function App() {
       
       if (Array.isArray(data)) {
         const processed = data.map((item, index) => {
+          // Normalizar claves del objeto JSON (minusculas)
           const normalizedItem = {};
           Object.keys(item).forEach(key => {
             normalizedItem[key.trim().toLowerCase()] = item[key];
@@ -133,8 +148,8 @@ export default function App() {
           const type = rawType.toString().toLowerCase();
           
           const valActual = parseNum(normalizedItem['actual']);
-          const valMin = parseNum(normalizedItem['mínima'] || normalizedItem['minima'] || normalizedItem['min'] || normalizedItem['mÃnima']);
-          const valMax = parseNum(normalizedItem['máxima'] || normalizedItem['maxima'] || normalizedItem['max'] || normalizedItem['mÃ¡xima']);
+          const valMin = parseNum(normalizedItem['mínima'] || normalizedItem['minima'] || normalizedItem['min']);
+          const valMax = parseNum(normalizedItem['máxima'] || normalizedItem['maxima'] || normalizedItem['max']);
 
           return {
             id: index,
@@ -154,6 +169,7 @@ export default function App() {
           };
         });
 
+        // Ordenar: Más recientes primero para la tabla (si se desea) o por fecha para gráficos
         processed.sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
         setRecords(processed);
       }
@@ -164,9 +180,9 @@ export default function App() {
     }
   };
 
-  useEffect(() => { fetchSheetData(); }, [activeTab]);
+  React.useEffect(() => { fetchSheetData(); }, [activeTab]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     const handleStatusChange = () => setIsOnline(navigator.onLine);
     window.addEventListener('online', handleStatusChange);
     window.addEventListener('offline', handleStatusChange);
@@ -201,11 +217,63 @@ export default function App() {
     return num < limits.hum[0] || num > limits.hum[1];
   };
 
+  // --- DETECCIÓN DE DUPLICADOS ---
+  const normalizeText = (text) => {
+    if (!text) return "";
+    return text.toString()
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quita tildes
+      .trim(); 
+  };
+
+  const checkForDuplicate = () => {
+    // Busca si ya existe un registro idéntico en fecha, jornada, area y tipo
+    const duplicate = records.find(r => {
+      // Ajuste de fecha para comparar (a veces viene con hora T00:00)
+      const recordDate = new Date(r.fecha).toISOString().split('T')[0];
+      const formDate = new Date(formData.fecha).toISOString().split('T')[0];
+      
+      // Normalizar texto para evitar fallos por mayusculas/tildes
+      const recordType = r.type ? r.type.toLowerCase() : 'temperatura';
+      const currentType = formType.toLowerCase();
+
+      // Ajuste para área con sub-zona en laboratorio
+      const recordArea = normalizeText(r.area);
+      let formAreaCheck = normalizeText(formData.area);
+      if (formData.area === 'LABORATORIO') {
+          formAreaCheck = normalizeText(`LABORATORIO - ${formData.subArea}`);
+      }
+
+      return (
+        recordDate === formDate &&
+        normalizeText(r.jornada) === normalizeText(formData.jornada) &&
+        recordArea === formAreaCheck &&
+        recordType.includes(currentType.substring(0, 4)) // "temp" coincide con "temperatura"
+      );
+    });
+
+    return duplicate;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.registradoPor) { alert("El campo 'Registrado Por' es obligatorio."); return; }
     if (formType === 'temperatura' && !formData.tempActual) { alert("Debe ingresar la Temperatura Actual."); return; }
     if (formType === 'humedad' && !formData.humActual) { alert("Debe ingresar la Humedad Actual."); return; }
+
+    const existingRecord = checkForDuplicate();
+    if (existingRecord) {
+      const confirmOverwrite = window.confirm(
+        `⚠️ NOTA DE CONTROL:\nYa existe un registro previo de ${formType.toUpperCase()} para:\n` +
+        `📅 ${formData.fecha}\n` +
+        `🏥 ${formData.area === 'LABORATORIO' ? formData.subArea : formData.area} (${formData.jornada})\n\n` +
+        `¿Desea registrar esta corrección? (Se guardará como un nuevo registro adicional)`
+      );
+      
+      if (!confirmOverwrite) {
+        return; // Cancelar guardado
+      }
+    }
 
     const finalAreaName = formData.area === 'LABORATORIO' 
       ? `LABORATORIO - ${formData.subArea}` 
@@ -238,7 +306,7 @@ export default function App() {
         humMin: '', humActual: '', humMax: '', 
         observaciones: '' 
       }));
-      setTimeout(fetchSheetData, 1000); 
+      setTimeout(fetchSheetData, 1500); 
     } catch (error) {
       console.error("Error al guardar:", error);
       alert("Error de conexión.");
@@ -277,6 +345,7 @@ export default function App() {
       if (!r.fecha) return false;
       const dateStr = r.fecha.toString().split('T')[0]; 
       const dateParts = dateStr.split('-');
+      // Validación básica de fecha
       if(dateParts.length < 3) return false;
 
       const recordYear = parseInt(dateParts[0]);
@@ -284,8 +353,7 @@ export default function App() {
 
       const matchesJornada = selectedJornadaStats === 'Todas' || r.jornada === selectedJornadaStats;
       
-      // ✅ LÓGICA DE FILTRADO MEJORADA
-      // Si se selecciona LABORATORIO, filtramos por el nombre completo "LABORATORIO - Subzona"
+      // ✅ LÓGICA DE FILTRADO CORREGIDA
       const targetArea = selectedAreaStats === 'LABORATORIO' 
         ? `LABORATORIO - ${selectedSubAreaStats}` 
         : selectedAreaStats;
@@ -302,6 +370,7 @@ export default function App() {
   const getChartData = () => {
     const areaRecords = getFilteredRecords();
     const grouped = {};
+    // Ordenar por fecha ASCENDENTE para el gráfico
     const sortedRecords = [...areaRecords].sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
 
     sortedRecords.forEach(r => {
@@ -332,19 +401,17 @@ export default function App() {
         if (r.humMax !== null) grouped[key].humMax = r.humMax;
       }
     });
-    return Object.values(grouped).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    return Object.values(grouped);
   };
 
   const chartData = getChartData();
   const currentYear = new Date().getFullYear();
   const years = Array.from({length: 5}, (_, i) => currentYear - i);
   
-  // ✅ NOMBRE DE ÁREA PARA MOSTRAR EN EL REPORTE
   const areaDisplayName = selectedAreaStats === 'LABORATORIO' 
     ? selectedSubAreaStats 
     : selectedAreaStats;
 
-  // ✅ LÍMITES DINÁMICOS PARA EL GRÁFICO
   const currentChartLimits = getCurrentLimits(areaDisplayName);
 
   const calculateAverage = (field) => {
@@ -354,8 +421,6 @@ export default function App() {
     return (sum / validRecords.length).toFixed(1);
   };
 
-  // Determinar colores del tema actual
-  const themeColor = formType === 'temperatura' ? 'blue' : 'purple';
   const gradientHeader = formType === 'temperatura' 
     ? 'bg-gradient-to-r from-cyan-600 to-blue-600' 
     : 'bg-gradient-to-r from-fuchsia-600 to-purple-700';
@@ -769,7 +834,7 @@ export default function App() {
                   {/* Gráfica de Humedad */}
                   {selectedTypeStats === 'Humedad' && (
                     <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200 print:shadow-none print:border-slate-300">
-                      <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-slate-700 flex items-center gap-2 print:text-black"><Droplets className="text-purple-500 print:text-black" /> Humedad (%)</h3></div>
+                      <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-slate-700 flex items-center gap-2 print:text-black"><Droplets className="text-purple-600 print:text-black" /> Humedad (%)</h3></div>
                       <div className="h-96 w-full">
                         {chartData.some(d => d.humActual !== null) ? (
                           <ResponsiveContainer width="100%" height="100%">
@@ -799,5 +864,18 @@ export default function App() {
         )}
       </main>
     </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// ✅ LÍNEA CRÍTICA: ESTO HACE QUE LA APP APAREZCA EN PANTALLA
+// ----------------------------------------------------------------------
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
   );
 }
